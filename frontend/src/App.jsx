@@ -1,70 +1,92 @@
-import { useEffect, useState } from 'react'
-import { api } from './api.js'
-import PrioritizationView from './components/PrioritizationView.jsx'
-import WeeklySchedulerView from './components/WeeklySchedulerView.jsx'
-import MonthlyForecastView from './components/MonthlyForecastView.jsx'
+import { useState, useEffect } from 'react'
+import { DataProvider, useNiyantraData } from './store/DataContext.jsx'
+import { TranslationProvider } from './store/TranslationContext.jsx'
+import Sidebar from './components/layout/Sidebar.jsx'
+import Topbar from './components/layout/Topbar.jsx'
+import Overview from './pages/Overview.jsx'
+import PriorityQueue from './pages/PriorityQueue.jsx'
+import BlockCalendar from './pages/BlockCalendar.jsx'
+import ConflictResolution from './pages/ConflictResolution.jsx'
+import WhatIfSimulator from './pages/WhatIfSimulator.jsx'
+import ReportsAnalytics from './pages/ReportsAnalytics.jsx'
+import Login from './pages/Login.jsx'
+import Landing from './pages/Landing.jsx'
 
-const TABS = [
-  { id: 'priority', label: 'Prioritization' },
-  { id: 'weekly', label: 'Weekly Scheduler' },
-  { id: 'monthly', label: 'Monthly Forecast' },
-]
-
-export default function App() {
-  const [tab, setTab] = useState('priority')
-  const [tasks, setTasks] = useState([])
-  const [corridors, setCorridors] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+function Shell({ userContext, onLogout }) {
+  const [page, setPage] = useState('overview')
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { bootLoading, error } = useNiyantraData()
 
   useEffect(() => {
-    api.bootstrap()
-      .then((data) => {
-        setTasks(data.tasks)
-        setCorridors(data.corridors)
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+    if (page === 'conflicts' && userContext.role !== 'DRM') {
+      setPage('overview')
+    }
+  }, [page, userContext.role, setPage])
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="border-b border-slate-800 px-6 py-4">
-        <h1 className="text-xl font-semibold text-slate-50">
-          AI Block Planning <span className="text-slate-500 font-normal">— Indian Railways</span>
-        </h1>
-        <nav className="mt-3 flex gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                tab === t.id
-                  ? 'bg-sky-600 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-      </header>
+    <div className="flex h-screen bg-ir-cream dark:bg-slate-900 overflow-hidden font-sans transition-colors">
+      
+      {/* Mobile Sidebar Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden" 
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
 
-      <main className="p-6">
-        {loading && <p className="text-slate-400">Loading seed data from backend…</p>}
-        {error && (
-          <p className="text-red-400">
-            Couldn't reach backend at http://localhost:8000 — {error}
-          </p>
-        )}
-        {!loading && !error && (
-          <>
-            {tab === 'priority' && <PrioritizationView tasks={tasks} />}
-            {tab === 'weekly' && <WeeklySchedulerView tasks={tasks} corridors={corridors} />}
-            {tab === 'monthly' && <MonthlyForecastView tasks={tasks} corridors={corridors} />}
-          </>
-        )}
-      </main>
+      {/* Sidebar - responsive classes added */}
+      <div className={`fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:flex`}>
+        <Sidebar 
+          page={page} 
+          setPage={(p) => { setPage(p); setMobileMenuOpen(false); }} 
+          collapsed={collapsed} 
+          setCollapsed={setCollapsed}
+          userContext={userContext}
+        />
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
+        <Topbar setPage={setPage} onToggleMobileMenu={() => setMobileMenuOpen(true)} onLogout={onLogout} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+          {bootLoading && (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading Command Center data…</p>
+            </div>
+          )}
+          {error && !bootLoading && (
+            <p className="rounded border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+              Couldn't reach the backend — {error}
+            </p>
+          )}
+          {!bootLoading && (
+            <>
+              {page === 'overview' && <Overview setPage={setPage} userContext={userContext} />}
+              {page === 'priority' && <PriorityQueue setPage={setPage} />}
+              {page === 'calendar' && <BlockCalendar />}
+              {page === 'conflicts' && userContext.role === 'DRM' && <ConflictResolution setPage={setPage} />}
+              {page === 'simulator' && <WhatIfSimulator />}
+              {page === 'reports' && <ReportsAnalytics />}
+            </>
+          )}
+        </main>
+      </div>
     </div>
+  )
+}
+
+export default function App() {
+  // We use page state at App level to manage Landing vs Shell
+  const [appState, setAppState] = useState('landing') // 'landing' | 'login' | 'shell'
+  const [userContext, setUserContext] = useState({ role: 'Section Engineer', department: 'ENG', division: 'Delhi (DLI)', corridor: 'NDLS-GZB' })
+
+  return (
+    <TranslationProvider>
+      <DataProvider userContext={userContext}>
+        {appState === 'landing' && <Landing onLogin={() => setAppState('login')} />}
+        {appState === 'login' && <Login onLogin={(ctx) => { setUserContext(ctx); setAppState('shell') }} />}
+        {appState === 'shell' && <Shell userContext={userContext} onLogout={() => setAppState('landing')} />}
+      </DataProvider>
+    </TranslationProvider>
   )
 }

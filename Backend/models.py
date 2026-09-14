@@ -35,5 +35,15 @@ class OfficerDecisionDB(Base):
     new_end_minute = Column(Integer, nullable=True)
     decided_by = Column(String, default="unauthenticated")
     decided_at = Column(DateTime, default=datetime.utcnow)
-
     block = relationship("ScheduledBlockDB", back_populates="decisions")
+
+
+class UserDB(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String)
+    email = Column(String, unique=True, index=True)
+    password = Column(String)
+    role = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)

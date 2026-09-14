@@ -102,3 +102,18 @@ class Conflict(BaseModel):
     corridor_id: str
     task_ids: list[str]
     reason: str
+
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class VerifyOTPRequest(BaseModel):
+    email: str
+    otp: str
